@@ -1,10 +1,11 @@
 import numpy as np
 import sympy as sp
 from sympy.utilities.lambdify import implemented_function
-from sympy.physics.mechanics import dynamicsymbols
+from sympy.physics.mechanics import dynamicsymbols, msubs
+from sympy.core.function import Derivative
 from simupy.array import r_, Array
 
-DEFAULT_LAMBDIFY_MODULES = ({'ImmutableMatrix': np.matrix, "atan2": np.arctan2}, "numpy", {"Mod": np.mod, "atan2": np.arctan2})
+DEFAULT_LAMBDIFY_MODULES = ({'ImmutableMatrix': np.matrix, "atan2": np.arctan2}, "numpy", {"Mod": np.mod, "atan2": np.arctan2}, {"atan": sp.atan})
 
 
 def process_vector_args(args):
@@ -53,8 +54,30 @@ def lambdify_with_vector_args(args, expr, modules=DEFAULT_LAMBDIFY_MODULES):
         See lambdify documentation; passed directly as modules keyword.
 
     """
-    new_args = process_vector_args(args)
+    def process_arguments(args, expr):
+        args_temp = process_vector_args(args)
+        
+        old_symbols = []
+        new_symbols = []
+        new_args = []
+        i = 0
+        for el in args_temp:
+            if isinstance(el, Derivative):
+                old_symbols.append(el)
+                new_symbol = dynamicsymbols('diff_{}'.format(i))
+                new_symbols.append(new_symbol)
+                new_args.append(new_symbol)
+                i += 1 
+            else:
+                new_args.append(el)
+        substitutions = dict(zip(old_symbols, new_symbols))
+        new_expr = msubs(expr, substitutions)
+        return tuple(new_args), new_expr
 
+    # new_args = process_vector_args(args)
+    new_args, expr = process_arguments(args, expr)
+    # print('new_args: ', new_args)
+    # print('expr: ', expr)
     if sp.__version__ < '1.1' and hasattr(expr, '__len__'):
         expr = sp.Matrix(expr)
 
@@ -62,6 +85,7 @@ def lambdify_with_vector_args(args, expr, modules=DEFAULT_LAMBDIFY_MODULES):
 
     def lambda_function_with_vector_args(*func_args):
         new_func_args = process_vector_args(func_args)
+        # print('new func args: ', new_func_args)
         return np.array(f(*new_func_args))
     lambda_function_with_vector_args.__doc__ = f.__doc__
     return lambda_function_with_vector_args

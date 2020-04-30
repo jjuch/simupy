@@ -193,7 +193,7 @@ class DynamicalSystem(DynamicalSystemBase):
             return
         if self.dim_state:
             self.output_equation_function = self.code_generator(
-                [dynamicsymbols._t] + sp.flatten(self.state),
+                [dynamicsymbols._t] + sp.flatten(self.state) + sp.flatten(self.input),
                 self.output_equation.subs(self.constants_values),
                 **self.code_generator_args
             )

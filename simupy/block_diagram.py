@@ -279,8 +279,33 @@ class BlockDiagram(object):
             state_end = self.cum_states[sysidx+1]
 
             state_values = state[state_start:state_end]
-            output[output_start:output_end] = \
-                sys.output_equation_function(t, state_values).reshape(-1)
+
+            input_start = self.cum_inputs[sysidx]
+            input_end = self.cum_inputs[sysidx+1]
+
+            input_values = np.zeros(sys.dim_input)
+
+            input_index, output_index = np.where(
+                self.connections[:, input_start:input_end].T
+            )
+            input_values[input_index] = output[output_index]
+
+            input_index, as_sys_input_index = np.where(
+                self.inputs[:, input_start:input_end].T
+            )
+
+            if as_sys_input_index.size:
+                input_values[input_index] = input_[as_sys_input_index]
+
+            if sys.dim_input:
+                output[output_start:output_end] = \
+                    sys.output_equation_function(t, state_values, input_values).reshape(-1)
+            else:
+                #TODO: Check what happens with statefull output eq without inputs.
+                output[output_start:output_end] = \
+                    sys.output_equation_function(t, state_values).reshape(-1)
+            
+            # print('test: ', output[output_start: output_end])
 
         # compute outputs for memoryless systems, y[t_k]=h(t_k,u[t_k])
         for sysidx in np.where((np.diff(self.cum_states) == 0))[0][::-1]:
@@ -559,7 +584,6 @@ class BlockDiagram(object):
         for sys in self.systems:
             sys.prepare_to_integrate()
         x0 = self.initial_condition
-
         # initial condition computation, populate initial condition in results
 
         #
@@ -568,6 +592,7 @@ class BlockDiagram(object):
 
         # compute first output for stateful systems
         y0 = self.output_equation_function(t0, x0, update_memoryless_event=True)
+        print('Passed')
 
         dx_dt_0, y0, e0 = self.computation_step( # TODO: this is where logic for events needs to happen
              t0, x0, y0, selector=True, do_events=True)
